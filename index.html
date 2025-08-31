@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Classroom</title>
+<title>Classroom Chat</title>
 <style>
 body { font-family:"Segoe UI",sans-serif; background:#2f3136; color:#fff; margin:0; display:flex; justify-content:center; align-items:center; height:100vh; transition:0.3s; }
 body.light { background:#f2f3f5; color:#111; }
@@ -34,14 +34,9 @@ body.light .message.user { background:#b3c7ff; color:#111; }
 .message.other { background:#4f545c; align-self:flex-start; }
 body.light .message.other { background:#e1e1e1; color:#111; }
 .message img { max-width:200px; border-radius:6px; margin-top:5px; }
-.actions { position:absolute; top:2px; right:4px; display:flex; gap:4px; }
-.actions button { background:transparent; color:#fff; font-size:12px; cursor:pointer; padding:2px 4px; }
-body.light .actions button { color:#111; }
-.actions button:hover { color:#ff5555; }
 .mention { color:#ffe600; font-weight:bold; cursor:pointer; }
 .input-area { display:flex; gap:10px; margin-top:5px; }
 .typing { font-size:12px; color:#ccc; margin-bottom:5px; }
-.timestamp { font-size:10px; color:#ccc; margin-top:2px; display:block; text-align:right; }
 </style>
 </head>
 <body>
@@ -85,12 +80,13 @@ body.light .actions button { color:#111; }
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js/dist/umd/supabase.min.js"></script>
 <script>
-// --- Supabase Config ---
+document.addEventListener('DOMContentLoaded', () => {
+
 const SUPABASE_URL = 'https://abzuknojmeonakneokkp.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_CZM5pIi5X5wGCogqjoHZ9g_9O_XW-ad';
-const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const supabase = Supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let currentUser = null;
 const authBox = document.getElementById('authBox');
@@ -110,10 +106,10 @@ const statusSelect = document.getElementById('statusSelect');
 const usersList = document.getElementById('usersList');
 const toggleThemeBtn = document.getElementById('toggleThemeBtn');
 
-// --- THEME ---
+// THEME
 toggleThemeBtn.addEventListener('click', ()=>document.body.classList.toggle('light'));
 
-// --- AUTH ---
+// AUTH
 signupBtn.addEventListener('click', async ()=>{
   const u=regUsername.value.trim(), p=regPassword.value.trim();
   if(!u||!p){ authMsg.textContent='Enter username & password'; return; }
@@ -133,13 +129,13 @@ loginBtn.addEventListener('click', async ()=>{
   localStorage.setItem('currentUser', JSON.stringify(currentUser)); showChat();
 });
 
-// --- SHOW CHAT ---
+// SHOW CHAT
 function showChat(){
   authBox.style.display='none'; chatBox.style.display='flex';
   renderUsers(); listenMessages(); listenUsers(); listenTyping();
 }
 
-// --- DELETE ACCOUNT ---
+// DELETE ACCOUNT
 deleteAccountBtn.addEventListener('click', async ()=>{
   if(!confirm('Delete account?')) return;
   await supabase.from('messages').delete().eq('user_id', currentUser.id);
@@ -147,12 +143,12 @@ deleteAccountBtn.addEventListener('click', async ()=>{
   localStorage.removeItem('currentUser'); location.reload();
 });
 
-// --- STATUS ---
+// STATUS
 statusSelect.addEventListener('change', async ()=>{
   await supabase.from('users').update({ status:statusSelect.value }).eq('id', currentUser.id);
 });
 
-// --- SEND MESSAGE ---
+// SEND MESSAGE
 sendMessageBtn.addEventListener('click', sendMessage);
 messageInput.addEventListener('keydown', e=>{ if(e.key==='Enter') sendMessage(); });
 
@@ -170,7 +166,7 @@ async function sendMessage(){
   messageInput.value='';
 }
 
-// --- RENDER MESSAGES ---
+// RENDER MESSAGES
 function addMessage(msg){
   const div = document.createElement('div');
   div.classList.add('message', msg.user_id===currentUser.id?'user':'other');
@@ -180,14 +176,14 @@ function addMessage(msg){
 }
 function parseMentions(text){ return text.replace(/@(\w+)/g,'<span class="mention">@$1</span>'); }
 
-// --- LISTEN MESSAGES ---
+// LISTEN MESSAGES
 async function listenMessages(){
   const { data } = await supabase.from('messages').select().order('created_at',{ascending:true});
   data.forEach(addMessage);
   supabase.from('messages').on('INSERT', payload => addMessage(payload.new)).subscribe();
 }
 
-// --- USERS ---
+// USERS
 async function listenUsers(){
   const { data } = await supabase.from('users').select();
   renderUsers(data);
@@ -204,7 +200,7 @@ async function renderUsers(users=null){
   });
 }
 
-// --- TYPING ---
+// TYPING
 function listenTyping(){
   supabase.from('users').on('UPDATE', payload=>{
     const typingUsers = payload.new.is_typing ? [payload.new.username] : [];
@@ -216,11 +212,11 @@ messageInput.addEventListener('input', async ()=>{
   setTimeout(()=>supabase.from('users').update({ is_typing:false }).eq('id', currentUser.id),1000);
 });
 
-// --- AUTO LOGIN ---
-window.onload = ()=>{
-  const saved = localStorage.getItem('currentUser');
-  if(saved){ currentUser=JSON.parse(saved); showChat(); }
-};
+// AUTO LOGIN
+const saved = localStorage.getItem('currentUser');
+if(saved){ currentUser=JSON.parse(saved); showChat(); }
+
+}); // DOMContentLoaded
 </script>
 </body>
 </html>
