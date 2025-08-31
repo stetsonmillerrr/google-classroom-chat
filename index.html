@@ -3,75 +3,126 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Supabase Chat Test</title>
+<title>Simple Chat</title>
 <style>
-  body { font-family: sans-serif; background: #222; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; }
-  input, button { margin: 5px; padding: 10px; border-radius: 5px; border: none; }
-  #msg { color: #f55; margin-top: 10px; }
+  body { font-family:sans-serif; background:#222; color:#fff; display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; }
+  #chatBox { display:none; width:90%; max-width:600px; }
+  #messages { border:1px solid #555; height:300px; overflow-y:auto; padding:10px; margin-bottom:10px; background:#333; }
+  input, button { padding:10px; margin:5px; border-radius:5px; border:none; }
 </style>
 </head>
 <body>
 
-<h2>Sign Up Test</h2>
-<input type="text" id="username" placeholder="Username">
-<input type="password" id="password" placeholder="Password">
-<button id="signupBtn">Sign Up</button>
-<div id="msg"></div>
+<h2>Username Chat</h2>
+<div id="authBox">
+  <input type="text" id="usernameInput" placeholder="Enter username">
+  <button id="loginBtn">Join Chat</button>
+  <div id="authMsg" style="color:#f55"></div>
+</div>
 
-<!-- Supabase UMD -->
+<div id="chatBox">
+  <div id="messages"></div>
+  <input type="text" id="messageInput" placeholder="Type a message...">
+  <button id="sendBtn">Send</button>
+  <button id="logoutBtn">Logout</button>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js/dist/umd/supabase.min.js"></script>
 <script>
   const SUPABASE_URL = 'https://abzuknojmeonakneokkp.supabase.co';
   const SUPABASE_KEY = 'sb_publishable_CZM5pIi5X5wGCogqjoHZ9g_9O_XW-ad';
   const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-  const usernameInput = document.getElementById('username');
-  const passwordInput = document.getElementById('password');
-  const signupBtn = document.getElementById('signupBtn');
-  const msgDiv = document.getElementById('msg');
+  let currentUser = null;
+  const authBox = document.getElementById('authBox');
+  const chatBox = document.getElementById('chatBox');
+  const usernameInput = document.getElementById('usernameInput');
+  const loginBtn = document.getElementById('loginBtn');
+  const authMsg = document.getElementById('authMsg');
+  const messagesEl = document.getElementById('messages');
+  const messageInput = document.getElementById('messageInput');
+  const sendBtn = document.getElementById('sendBtn');
+  const logoutBtn = document.getElementById('logoutBtn');
 
-  signupBtn.addEventListener('click', async () => {
+  // LOGIN / SIGNUP
+  loginBtn.addEventListener('click', async () => {
     const username = usernameInput.value.trim();
-    const password = passwordInput.value.trim();
-    msgDiv.textContent = '';
-
-    if (!username || !password) {
-      msgDiv.textContent = 'Enter username and password!';
-      return;
-    }
-
-    console.log('Sign Up clicked:', username);
+    if(!username){ authMsg.textContent='Enter a username'; return; }
+    authMsg.textContent='';
 
     try {
       // Check if username exists
-      const { data: existing, error: selectError } = await supabase
-        .from('users')
-        .select()
-        .eq('username', username);
-
-      if (selectError) throw selectError;
-      if (existing.length) {
-        msgDiv.textContent = 'Username already taken!';
-        return;
+      let { data: users } = await supabase.from('users').select().eq('username', username);
+      if(!users.length){
+        // Create user if new
+        const { data } = await supabase.from('users').insert([{ username, status:'online' }]).select();
+        currentUser = data[0];
+      } else {
+        currentUser = users[0];
+        await supabase.from('users').update({ status:'online' }).eq('id', currentUser.id);
       }
 
-      // Insert new user
-      const { data, error } = await supabase
-        .from('users')
-        .insert([{ username, password, status: 'online' }])
-        .select();
+      localStorage.setItem('currentUser', JSON.stringify(currentUser));
+      showChat();
 
-      if (error) throw error;
-
-      console.log('User created:', data[0]);
-      msgDiv.style.color = '#0f0';
-      msgDiv.textContent = 'Sign Up successful! User ID: ' + data[0].id;
-
-    } catch (err) {
-      console.error('Sign Up error:', err);
-      msgDiv.textContent = 'Error: ' + err.message;
+    } catch(err) {
+      console.error(err);
+      authMsg.textContent = 'Error: ' + err.message;
     }
   });
+
+  function showChat(){
+    authBox.style.display='none';
+    chatBox.style.display='block';
+    loadMessages();
+    subscribeMessages();
+  }
+
+  // SEND MESSAGE
+  sendBtn.addEventListener('click', sendMessage);
+  messageInput.addEventListener('keydown', e => { if(e.key==='Enter') sendMessage(); });
+
+  async function sendMessage(){
+    const text = messageInput.value.trim();
+    if(!text) return;
+    await supabase.from('messages').insert([{ user_id: currentUser.id, username: currentUser.username, content:text }]);
+    messageInput.value='';
+  }
+
+  // LOAD EXISTING MESSAGES
+  async function loadMessages(){
+    const { data } = await supabase.from('messages').select().order('created_at',{ascending:true});
+    messagesEl.innerHTML='';
+    data.forEach(addMessage);
+  }
+
+  // REALTIME SUBSCRIPTION
+  function subscribeMessages(){
+    supabase.from('messages').on('INSERT', payload => addMessage(payload.new)).subscribe();
+  }
+
+  function addMessage(msg){
+    const div = document.createElement('div');
+    div.textContent = msg.username + ': ' + msg.content;
+    messagesEl.appendChild(div);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  // LOGOUT
+  logoutBtn.addEventListener('click', async () => {
+    await supabase.from('users').update({ status:'offline' }).eq('id', currentUser.id);
+    localStorage.removeItem('currentUser');
+    location.reload();
+  });
+
+  // AUTO LOGIN
+  window.onload = () => {
+    const saved = localStorage.getItem('currentUser');
+    if(saved){
+      currentUser = JSON.parse(saved);
+      showChat();
+    }
+  }
 </script>
 </body>
 </html>
