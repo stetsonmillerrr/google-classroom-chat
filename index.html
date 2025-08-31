@@ -86,7 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 const SUPABASE_URL = 'https://abzuknojmeonakneokkp.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_CZM5pIi5X5wGCogqjoHZ9g_9O_XW-ad';
-const supabase = Supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let currentUser = null;
 const authBox = document.getElementById('authBox');
