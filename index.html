@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Clickable Username Chat</title>
+<title>Username Chat</title>
 <style>
-body { font-family:sans-serif; background:#222; color:#fff; margin:0; padding:0; }
+body { font-family:sans-serif; background:#222; color:#fff; margin:0; padding:20px; }
 #authBox, #chatBox { width:90%; max-width:400px; margin:50px auto; text-align:center; }
 input, button { padding:10px; margin:5px; border-radius:5px; border:none; width:80%; cursor:pointer; }
 #messages { border:1px solid #555; height:300px; overflow-y:auto; padding:10px; background:#333; text-align:left; }
@@ -27,7 +27,7 @@ input, button { padding:10px; margin:5px; border-radius:5px; border:none; width:
   <button id="logoutBtn">Logout</button>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
 const SUPABASE_URL = 'https://abzuknojmeonakneokkp.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_CZM5pIi5X5wGCogqjoHZ9g_9O_XW-ad';
@@ -44,16 +44,19 @@ const messageInput = document.getElementById('messageInput');
 const sendBtn = document.getElementById('sendBtn');
 const logoutBtn = document.getElementById('logoutBtn');
 
-// Login / Signup
+// Login
 loginBtn.addEventListener('click', async () => {
   const username = usernameInput.value.trim();
   if(!username){ authMsg.textContent='Enter a username'; return; }
   authMsg.textContent='';
 
   try {
-    let { data: users } = await supabase.from('users').select().eq('username', username);
+    const { data: users, error } = await supabase.from('users').select().eq('username', username);
+    if(error){ authMsg.textContent = error.message; return; }
+
     if(!users.length){
-      const { data } = await supabase.from('users').insert([{ username, status:'online' }]).select();
+      const { data, error: insertError } = await supabase.from('users').insert([{ username, status:'online' }]).select();
+      if(insertError){ authMsg.textContent = insertError.message; return; }
       currentUser = data[0];
     } else {
       currentUser = users[0];
@@ -62,7 +65,7 @@ loginBtn.addEventListener('click', async () => {
 
     localStorage.setItem('currentUser', JSON.stringify(currentUser));
     showChat();
-  } catch(err) {
+  } catch(err){
     console.error(err);
     authMsg.textContent = 'Error: ' + err.message;
   }
@@ -98,5 +101,6 @@ window.onload = () => {
   }
 };
 </script>
+
 </body>
 </html>
