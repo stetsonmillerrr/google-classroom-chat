@@ -3,104 +3,180 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Username Chat</title>
+<title>Simple Chat</title>
 <style>
-body { font-family:sans-serif; background:#222; color:#fff; margin:0; padding:20px; }
-#authBox, #chatBox { width:90%; max-width:400px; margin:50px auto; text-align:center; }
-input, button { padding:10px; margin:5px; border-radius:5px; border:none; width:80%; cursor:pointer; }
-#messages { border:1px solid #555; height:300px; overflow-y:auto; padding:10px; background:#333; text-align:left; }
+body { font-family: "Segoe UI", sans-serif; background: #2f3136; color: #fff; margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; }
+.chat-container { width: 800px; max-width: 95%; background: #36393f; border-radius: 12px; display: flex; flex-direction: column; overflow: hidden; }
+input, button { border-radius: 6px; border: none; outline: none; font-size: 14px; padding: 10px; }
+input { flex: 1; margin-right: 10px; background: #40444b; color: #fff; }
+button { background: #7289da; color: #fff; cursor: pointer; }
+button:hover { background: #5b6eae; }
+#chatBox { display: none; flex-direction: column; }
+.messages { flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 10px; }
+.message.user { background: #7289da; align-self: flex-end; padding: 8px; border-radius: 8px; }
+.message.other { background: #4f545c; align-self: flex-start; padding: 8px; border-radius: 8px; }
+.users-list { width: 150px; border-right: 1px solid #555; padding: 10px; overflow-y: auto; }
+.chat-body { display: flex; height: 400px; }
+.input-area { display: flex; gap: 5px; margin-top: 5px; }
+.status-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+.status-online { background: #43b581; }
+.status-away { background: #faa61a; }
+.status-dnd { background: #f04747; }
+.status-offline { background: #747f8d; }
+.typing { font-size: 12px; color: #ccc; margin-bottom: 5px; }
 </style>
 </head>
 <body>
 
-<div id="authBox">
-  <h2>Username Chat</h2>
-  <input type="text" id="usernameInput" placeholder="Enter username"><br>
-  <button id="loginBtn">Join Chat</button>
-  <div id="authMsg" style="color:#f55"></div>
+<div class="chat-container">
+  <!-- AUTH -->
+  <div id="authBox">
+    <h2>Join Chat</h2>
+    <input type="text" id="usernameInput" placeholder="Enter your username">
+    <button id="joinBtn">Join Chat</button>
+    <div id="authMsg" style="color:#f55; margin-top:5px;"></div>
+  </div>
+
+  <!-- CHAT -->
+  <div id="chatBox">
+    <div class="chat-header">
+      <span class="typing" id="typingIndicator"></span>
+      <button id="logoutBtn">Logout</button>
+    </div>
+    <div class="chat-body">
+      <div class="users-list" id="usersList"><h3>Users</h3></div>
+      <div class="messages-container" style="flex:1; display:flex; flex-direction:column;">
+        <div class="messages" id="messages"></div>
+        <div class="input-area">
+          <input type="text" id="messageInput" placeholder="Type a message...">
+          <button id="sendBtn">Send</button>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
-<div id="chatBox" style="display:none;">
-  <div id="messages"></div>
-  <input type="text" id="messageInput" placeholder="Type a message..."><br>
-  <button id="sendBtn">Send</button>
-  <button id="logoutBtn">Logout</button>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js/dist/umd/supabase.min.js"></script>
 <script>
+// --- Supabase Config ---
 const SUPABASE_URL = 'https://abzuknojmeonakneokkp.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_CZM5pIi5X5wGCogqjoHZ9g_9O_XW-ad';
-const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const supabase = Supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let currentUser = null;
+
+// Elements
 const authBox = document.getElementById('authBox');
 const chatBox = document.getElementById('chatBox');
 const usernameInput = document.getElementById('usernameInput');
-const loginBtn = document.getElementById('loginBtn');
+const joinBtn = document.getElementById('joinBtn');
 const authMsg = document.getElementById('authMsg');
 const messagesEl = document.getElementById('messages');
 const messageInput = document.getElementById('messageInput');
 const sendBtn = document.getElementById('sendBtn');
+const usersList = document.getElementById('usersList');
+const typingIndicator = document.getElementById('typingIndicator');
 const logoutBtn = document.getElementById('logoutBtn');
 
-// Login
-loginBtn.addEventListener('click', async () => {
+// --- AUTH ---
+joinBtn.addEventListener('click', async () => {
   const username = usernameInput.value.trim();
-  if(!username){ authMsg.textContent='Enter a username'; return; }
-  authMsg.textContent='';
+  if (!username) { authMsg.textContent = "Enter a username"; return; }
 
-  try {
-    const { data: users, error } = await supabase.from('users').select().eq('username', username);
-    if(error){ authMsg.textContent = error.message; return; }
-
-    if(!users.length){
-      const { data, error: insertError } = await supabase.from('users').insert([{ username, status:'online' }]).select();
-      if(insertError){ authMsg.textContent = insertError.message; return; }
-      currentUser = data[0];
-    } else {
-      currentUser = users[0];
-      await supabase.from('users').update({ status:'online' }).eq('id', currentUser.id);
-    }
-
-    localStorage.setItem('currentUser', JSON.stringify(currentUser));
-    showChat();
-  } catch(err){
-    console.error(err);
-    authMsg.textContent = 'Error: ' + err.message;
+  // Check if username exists
+  const { data: existing } = await supabase.from('users').select().eq('username', username);
+  if (existing.length) {
+    currentUser = existing[0];
+  } else {
+    const { data, error } = await supabase.from('users').insert([{ username, status:'online', is_typing:false }]).select();
+    if (error) { authMsg.textContent = error.message; return; }
+    currentUser = data[0];
   }
+
+  localStorage.setItem('currentUser', JSON.stringify(currentUser));
+  showChat();
 });
 
-// Show chat
-function showChat(){
-  authBox.style.display='none';
-  chatBox.style.display='block';
+// --- SHOW CHAT ---
+function showChat() {
+  authBox.style.display = 'none';
+  chatBox.style.display = 'flex';
+  renderUsers();
+  listenMessages();
+  listenUsers();
+  listenTyping();
 }
 
-// Send message
-sendBtn.addEventListener('click', async () => {
-  const text = messageInput.value.trim();
-  if(!text) return;
-  await supabase.from('messages').insert([{ user_id: currentUser.id, username: currentUser.username, content:text }]);
-  messageInput.value='';
-});
-
-// Logout
-logoutBtn.addEventListener('click', async () => {
-  await supabase.from('users').update({ status:'offline' }).eq('id', currentUser.id);
+// --- LOGOUT ---
+logoutBtn.addEventListener('click', () => {
   localStorage.removeItem('currentUser');
   location.reload();
 });
 
-// Auto login
+// --- SEND MESSAGE ---
+sendBtn.addEventListener('click', sendMessage);
+messageInput.addEventListener('keydown', e => { if(e.key==='Enter') sendMessage(); });
+
+async function sendMessage() {
+  const text = messageInput.value.trim();
+  if(!text) return;
+  await supabase.from('messages').insert([{ user_id: currentUser.id, username: currentUser.username, content: text }]);
+  messageInput.value = '';
+}
+
+// --- RENDER MESSAGES ---
+function addMessage(msg) {
+  const div = document.createElement('div');
+  div.classList.add('message', msg.user_id===currentUser.id?'user':'other');
+  div.textContent = `${msg.username}: ${msg.content}`;
+  messagesEl.appendChild(div);
+  messagesEl.scroll({ top: messagesEl.scrollHeight, behavior: 'smooth' });
+}
+
+// --- LISTEN MESSAGES ---
+async function listenMessages() {
+  const { data } = await supabase.from('messages').select().order('created_at', { ascending:true });
+  data.forEach(addMessage);
+  supabase.from('messages').on('INSERT', payload => addMessage(payload.new)).subscribe();
+}
+
+// --- USERS ---
+async function renderUsers(users=null) {
+  if(!users) { const { data } = await supabase.from('users').select(); users=data; }
+  usersList.innerHTML = '<h3>Users</h3>';
+  users.forEach(u => {
+    const div = document.createElement('div');
+    const dot = document.createElement('span');
+    dot.classList.add('status-dot','status-'+u.status);
+    div.appendChild(dot);
+    div.appendChild(document.createTextNode(u.username));
+    usersList.appendChild(div);
+  });
+}
+
+async function listenUsers() {
+  const { data } = await supabase.from('users').select();
+  renderUsers(data);
+  supabase.from('users').on('UPDATE', payload => renderUsers()).subscribe();
+}
+
+// --- TYPING ---
+function listenTyping() {
+  supabase.from('users').on('UPDATE', payload => {
+    const typingUsers = payload.new.is_typing ? [payload.new.username] : [];
+    typingIndicator.textContent = typingUsers.length ? `${typingUsers.join(', ')} typing...` : '';
+  }).subscribe();
+}
+messageInput.addEventListener('input', async () => {
+  await supabase.from('users').update({ is_typing:true }).eq('id', currentUser.id);
+  setTimeout(()=>supabase.from('users').update({ is_typing:false }).eq('id', currentUser.id),1000);
+});
+
+// --- AUTO LOGIN ---
 window.onload = () => {
   const saved = localStorage.getItem('currentUser');
-  if(saved){
-    currentUser = JSON.parse(saved);
-    showChat();
-  }
+  if(saved) { currentUser = JSON.parse(saved); showChat(); }
 };
 </script>
-
 </body>
 </html>
