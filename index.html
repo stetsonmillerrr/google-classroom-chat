@@ -3,26 +3,26 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Username Chat</title>
+<title>Clickable Username Chat</title>
 <style>
-body { font-family:sans-serif; background:#222; color:#fff; display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; }
-#chatBox { display:none; width:90%; max-width:600px; }
-#messages { border:1px solid #555; height:300px; overflow-y:auto; padding:10px; margin-bottom:10px; background:#333; }
-input, button { padding:10px; margin:5px; border-radius:5px; border:none; }
+body { font-family:sans-serif; background:#222; color:#fff; margin:0; padding:0; }
+#authBox, #chatBox { width:90%; max-width:400px; margin:50px auto; text-align:center; }
+input, button { padding:10px; margin:5px; border-radius:5px; border:none; width:80%; cursor:pointer; }
+#messages { border:1px solid #555; height:300px; overflow-y:auto; padding:10px; background:#333; text-align:left; }
 </style>
 </head>
 <body>
 
-<h2>Username Chat</h2>
 <div id="authBox">
-  <input type="text" id="usernameInput" placeholder="Enter username">
+  <h2>Username Chat</h2>
+  <input type="text" id="usernameInput" placeholder="Enter username"><br>
   <button id="loginBtn">Join Chat</button>
   <div id="authMsg" style="color:#f55"></div>
 </div>
 
-<div id="chatBox">
+<div id="chatBox" style="display:none;">
   <div id="messages"></div>
-  <input type="text" id="messageInput" placeholder="Type a message...">
+  <input type="text" id="messageInput" placeholder="Type a message..."><br>
   <button id="sendBtn">Send</button>
   <button id="logoutBtn">Logout</button>
 </div>
@@ -34,8 +34,6 @@ const SUPABASE_KEY = 'sb_publishable_CZM5pIi5X5wGCogqjoHZ9g_9O_XW-ad';
 const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let currentUser = null;
-
-// Elements
 const authBox = document.getElementById('authBox');
 const chatBox = document.getElementById('chatBox');
 const usernameInput = document.getElementById('usernameInput');
@@ -64,7 +62,6 @@ loginBtn.addEventListener('click', async () => {
 
     localStorage.setItem('currentUser', JSON.stringify(currentUser));
     showChat();
-
   } catch(err) {
     console.error(err);
     authMsg.textContent = 'Error: ' + err.message;
@@ -75,39 +72,15 @@ loginBtn.addEventListener('click', async () => {
 function showChat(){
   authBox.style.display='none';
   chatBox.style.display='block';
-  loadMessages();
-  subscribeMessages();
 }
 
 // Send message
-sendBtn.addEventListener('click', sendMessage);
-messageInput.addEventListener('keydown', e => { if(e.key==='Enter') sendMessage(); });
-
-async function sendMessage(){
+sendBtn.addEventListener('click', async () => {
   const text = messageInput.value.trim();
   if(!text) return;
   await supabase.from('messages').insert([{ user_id: currentUser.id, username: currentUser.username, content:text }]);
   messageInput.value='';
-}
-
-// Load messages
-async function loadMessages(){
-  const { data } = await supabase.from('messages').select().order('created_at',{ascending:true});
-  messagesEl.innerHTML='';
-  data.forEach(addMessage);
-}
-
-// Realtime subscription
-function subscribeMessages(){
-  supabase.from('messages').on('INSERT', payload => addMessage(payload.new)).subscribe();
-}
-
-function addMessage(msg){
-  const div = document.createElement('div');
-  div.textContent = msg.username + ': ' + msg.content;
-  messagesEl.appendChild(div);
-  messagesEl.scrollTop = messagesEl.scrollHeight;
-}
+});
 
 // Logout
 logoutBtn.addEventListener('click', async () => {
